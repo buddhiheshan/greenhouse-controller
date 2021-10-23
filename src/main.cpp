@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
-#include <ArduinoJson.h>
 
 #define DEBUG 1
 #ifdef DEBUG
@@ -9,6 +8,11 @@
 #else
 #define PRINT(...)
 #endif
+
+#define MSG_BUFFER_SIZE (25)
+
+// ledPin refers to ESP32 GPIO 23
+const int ledPin = 2;
 
 // Wifi ssid and password
 const char *ssid = "Dialog 4G 255";
@@ -50,7 +54,6 @@ int light_intensity = 100;
 char fertilizer_tank[2] = "M";
 char water_tank[2] = "M";
 
-#define MSG_BUFFER_SIZE (50)
 char msg[MSG_BUFFER_SIZE];
 
 WiFiClient espClient;
@@ -107,20 +110,19 @@ void callback(char *topic, byte *message, unsigned int length)
     sscanf(buf, "%d,%d,%d,%d,%c,%c", &temperature, &soil_moisture, &humidity, &light_intensity, water_tank, fertilizer_tank);
     PRINT("Readings updated Temp = %d\tSoil_moist = %d\tHumid = %d\tLight intensity = %d\tWater tank = %s\tFertilizer tank = %s\n", temperature, soil_moisture, humidity, light_intensity, water_tank, fertilizer_tank);
 
-    char payload[8];
-    itoa(temperature, payload, 10);
-    client.publish(temp_topic, payload);
-    itoa(soil_moisture, payload, 10);
-    client.publish(soil_moist_topic, payload);
-    itoa(humidity, payload, 10);
-    client.publish(humidity_topic, payload);
-    itoa(light_intensity, payload, 10);
-    client.publish(light_intensity_topic, payload);
+    itoa(temperature, msg, 10);
+    client.publish(temp_topic, msg);
+    itoa(soil_moisture, msg, 10);
+    client.publish(soil_moist_topic, msg);
+    itoa(humidity, msg, 10);
+    client.publish(humidity_topic, msg);
+    itoa(light_intensity, msg, 10);
+    client.publish(light_intensity_topic, msg);
     client.publish(water_tank_topic, water_tank);
     client.publish(fertilizer_tank_topic, fertilizer_tank);
 
     // snprintf(msg, MSG_BUFFER_SIZE, "%d,%d,%d,%d,%d", fan, watering, fertilizer, humidifier, light);
-    client.publish(sensor_readings_SCADA, buf);
+    client.publish(sensor_readings_SCADA, buf, 2);
   }
 }
 
@@ -157,27 +159,26 @@ void Task1code(void *parameter)
     {
       reconnect();
     }
-    client.loop();
+    // client.loop();
   }
 }
 
+// the setup function runs once when you press reset or power the board
 void setup()
 {
+  // initialize digital pin ledPin as an output.
+  pinMode(ledPin, OUTPUT);
+
   Serial.begin(115200);
 
   // delete old config
   WiFi.disconnect(true);
 
-  delay(1000);
+  delay(3000);
 
   WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_STA_CONNECTED);
   WiFi.onEvent(WiFiGotIP, SYSTEM_EVENT_STA_GOT_IP);
   WiFi.onEvent(WiFiStationDisconnected, SYSTEM_EVENT_STA_DISCONNECTED);
-
-  /* Remove WiFi event
-  Serial.print("WiFi Event ID: ");
-  Serial.println(eventID);
-  WiFi.removeEvent(eventID);*/
 
   WiFi.begin(ssid, password);
 
@@ -201,7 +202,7 @@ void setup()
       NULL,      /* Task input parameter */
       0,         /* Priority of the task */
       &Task1,    /* Task handle. */
-      0);        /* Core where the task should run */
+      0);        /* Core */
 }
 
 int modified_COM_signals = 0;
@@ -216,6 +217,7 @@ int fan = 0;
 int humidifier = 0;
 int light = 0;
 
+// the loop function runs over and over again forever
 void loop()
 {
   // water supply
@@ -309,26 +311,24 @@ void loop()
   }
 
   // send control data to SCADA
-  if (modified_COM_signals || modified_SCADA_signals)
+  if ((modified_COM_signals || modified_SCADA_signals) && client.connected())
   {
     snprintf(msg, MSG_BUFFER_SIZE, "%d,%d,%d,%d,%d,%d", fan, watering, fertilizer, humidifier, light, water_supply);
-    int status = client.publish(control_signals_SCADA, msg);
-    Serial.println(status);
+    client.publish(control_signals_SCADA, msg, 2);
     PRINT("Published to SCADA\n");
     modified_SCADA_signals = 0;
-    delay(100);
   }
 
   //send control data to com unit
-  if (modified_COM_signals)
+  if (modified_COM_signals && client.connected())
   {
     snprintf(msg, MSG_BUFFER_SIZE, "%d,%d,%d,%d,%d", fan, watering, fertilizer, humidifier, light);
-    int status1 = client.publish(control_signals_COM, msg);
-    Serial.println(status1);
-    PRINT("Published to Com\n");
+    int status = client.publish(control_signals_COM, msg, 2);
+    PRINT("Published to COM %d\n", status);
     modified_COM_signals = 0;
   }
-  // client.loop();
+
+  client.loop();
 
   delay(10);
 }
