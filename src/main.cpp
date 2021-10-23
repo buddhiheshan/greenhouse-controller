@@ -37,16 +37,16 @@ const char *water_tank_topic = "CO326/2021/GH/1/water_tank_level";
 const char *fertilizer_tank_topic = "CO326/2021/GH/1/fertilizer_tank_level";
 
 // threshold values
-int temperature_limit = 25;
+int temperature_limit = 50;
 int soil_moisture_limit = 50;
-int humidity_limit = 70;
-int light_intensity_limit = 40;
+int humidity_limit = 50;
+int light_intensity_limit = 50;
 
 // sensor readings
 int temperature = 0;
 int soil_moisture = 100;
-int humidity = 32;
-int light_intensity = 32;
+int humidity = 100;
+int light_intensity = 100;
 char fertilizer_tank[2] = "M";
 char water_tank[2] = "M";
 
@@ -81,14 +81,14 @@ void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info)
 // on MQTT message
 void callback(char *topic, byte *message, unsigned int length)
 {
-  Serial.print("Message arrived on topic: ");
-  Serial.print(topic);
-  Serial.print(". Message: ");
+  // Serial.print("Message arrived on topic: ");
+  // Serial.print(topic);
+  // Serial.print(". Message: ");
   String messageTemp;
 
   for (int i = 0; i < length; i++)
   {
-    Serial.print((char)message[i]);
+    // Serial.print((char)message[i]);
     messageTemp += (char)message[i];
   }
   Serial.println();
@@ -116,9 +116,7 @@ void callback(char *topic, byte *message, unsigned int length)
     client.publish(humidity_topic, payload);
     itoa(light_intensity, payload, 10);
     client.publish(light_intensity_topic, payload);
-    // itoa(water_tank, payload, 10);
     client.publish(water_tank_topic, water_tank);
-    // itoa(fertilizer_tank, payload, 10);
     client.publish(fertilizer_tank_topic, fertilizer_tank);
 
     // snprintf(msg, MSG_BUFFER_SIZE, "%d,%d,%d,%d,%d", fan, watering, fertilizer, humidifier, light);
@@ -206,90 +204,131 @@ void setup()
       0);        /* Core where the task should run */
 }
 
-int modified = 0;
+int modified_COM_signals = 0;
+int modified_SCADA_signals = 0;
 
-int humidifier = 0;
-int light = 0;
 int fertilizer = 0;
 
 int water_supply = 0;
 int fertilizer_low = 0;
 int watering = 0;
 int fan = 0;
+int humidifier = 0;
+int light = 0;
 
 void loop()
 {
   // water supply
-  if ((water_supply == 0) && !strcmp(water_tank, "L"))
+  if (!water_supply && !strcmp(water_tank, "L"))
   {
     water_supply = 1;
     PRINT("Open water input\t\twater_supply = %d\n", water_supply);
+    modified_SCADA_signals = 1;
+    // !TODO
     // MQTT
   }
-  if ((water_supply == 1) && !strcmp(water_tank, "H"))
+  if (water_supply && !strcmp(water_tank, "H"))
   {
     water_supply = 0;
     PRINT("Close water input\t\twater_supply = %d\n", water_supply);
+    modified_SCADA_signals = 1;
+    // !TODO
     // MQTT
   }
 
   // fertilizer low
-  if ((fertilizer_low == 0) && !strcmp(fertilizer_tank, "L"))
+  if (!fertilizer_low && !strcmp(fertilizer_tank, "L"))
   {
     fertilizer_low = 1;
     PRINT("Fertilizer Low\t\t fertilizer_low = %d\n", fertilizer_low);
+    // !TODO
     // MQTT
   }
-  if ((fertilizer_low == 1) && !strcmp(fertilizer_tank, "M"))
+  if (fertilizer_low && !strcmp(fertilizer_tank, "M"))
   {
     fertilizer_low = 0;
     PRINT("Fertilizer Medium\t\t fertilizer_low = %d\n", fertilizer_low);
+    // !TODO
     // MQTT
   }
 
   // watering plants
-  if ((watering == 0) && (soil_moisture < soil_moisture_limit))
+  if (!watering && (soil_moisture < soil_moisture_limit))
   {
     watering = 1;
     PRINT("Start watering plants\t\t watering = %d\n", watering);
-    modified = 1;
-    // MQTT
+    modified_COM_signals = 1;
   }
-  if ((watering == 1) && (soil_moisture > soil_moisture_limit))
+  if (watering && (soil_moisture > soil_moisture_limit))
   {
     watering = 0;
     PRINT("Stop watering plants\t\t watering = %d\n", watering);
-    modified = 1;
-    // MQTT
+    modified_COM_signals = 1;
   }
 
   // fan control
-  if ((fan == 1) && (temperature < temperature_limit))
+  if (fan && (temperature < temperature_limit))
   {
     fan = 0;
     PRINT("Stop fans\t\t fan = %d\n", fan);
-    modified = 1;
-    // MQTT
+    modified_COM_signals = 1;
   }
-  if ((fan == 0) && (temperature > temperature_limit))
+  if (!fan && (temperature > temperature_limit))
   {
     fan = 1;
     PRINT("Start fans\t\t fan = %d\n", fan);
-    modified = 1;
-    // MQTT
+    modified_COM_signals = 1;
   }
 
   // humidifier control
-  // lights control
+  if (!humidifier && (humidity < humidity_limit))
+  {
+    humidifier = 1;
+    PRINT("Start humidifier\t\t humidifier = %d\n", humidifier);
+    modified_COM_signals = 1;
+  }
+  if (humidifier && (humidity > humidity_limit))
+  {
+    humidifier = 0;
+    PRINT("Stop humidifier\t\t humidifier = %d\n", humidifier);
+    modified_COM_signals = 1;
+  }
 
-  //send data to controller
-  if (modified == 1)
+  // lights control
+  if (!light && (light_intensity < light_intensity_limit))
+  {
+    light = 1;
+    PRINT("Start lights\t\t light = %d\n", light);
+    modified_COM_signals = 1;
+  }
+  if (light && (light_intensity > light_intensity_limit))
+  {
+    light = 0;
+    PRINT("Stop lights\t\t light = %d\n", light);
+    modified_COM_signals = 1;
+  }
+
+  // send control data to SCADA
+  if (modified_COM_signals || modified_SCADA_signals)
+  {
+    snprintf(msg, MSG_BUFFER_SIZE, "%d,%d,%d,%d,%d,%d", fan, watering, fertilizer, humidifier, light, water_supply);
+    int status = client.publish(control_signals_SCADA, msg);
+    Serial.println(status);
+    PRINT("Published to SCADA\n");
+    modified_SCADA_signals = 0;
+    delay(100);
+  }
+
+  //send control data to com unit
+  if (modified_COM_signals)
   {
     snprintf(msg, MSG_BUFFER_SIZE, "%d,%d,%d,%d,%d", fan, watering, fertilizer, humidifier, light);
-    Serial.print("Publish message: ");
-    Serial.println(msg);
-    client.publish("zyko/test1", msg);
-    modified = 0;
+    int status1 = client.publish(control_signals_COM, msg);
+    Serial.println(status1);
+    PRINT("Published to Com\n");
+    modified_COM_signals = 0;
   }
+  // client.loop();
+
   delay(10);
 }
