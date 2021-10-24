@@ -11,9 +11,6 @@
 
 #define MSG_BUFFER_SIZE (25)
 
-// ledPin refers to ESP32 GPIO 23
-const int ledPin = 2;
-
 // Wifi ssid and password
 const char *ssid = "Dialog 4G 255";
 const char *password = "Dialog4G311/13";
@@ -40,11 +37,18 @@ const char *light_intensity_topic = "CO326/2021/GH/1/light_intensity";
 const char *water_tank_topic = "CO326/2021/GH/1/water_tank_level";
 const char *fertilizer_tank_topic = "CO326/2021/GH/1/fertilizer_tank_level";
 
+const char *water_supply_topic = "CO326/2021/GH/1/water_supply";
+const char *fertilizer_low_topic = "CO326/2021/GH/1/fertilizer_low_level";
+
 // threshold values
-int temperature_limit = 50;
+int temperature_limit1 = 100;
+int temperature_limit2 = 100;
+int temperature_limit3 = 100;
 int soil_moisture_limit = 50;
 int humidity_limit = 50;
-int light_intensity_limit = 50;
+int light_intensity_limit1 = 50;
+int light_intensity_limit2 = 50;
+int light_intensity_limit3 = 50;
 
 // sensor readings
 int temperature = 0;
@@ -101,8 +105,8 @@ void callback(char *topic, byte *message, unsigned int length)
 
   if (!strcmp(topic, thresholds))
   {
-    sscanf(buf, "%d,%d,%d,%d", &temperature_limit, &soil_moisture_limit, &humidity_limit, &light_intensity_limit);
-    PRINT("Limits updated Temp=%d\tSoil_moist=%d\tHumid=%d\tLight intensity=%d\n", temperature_limit, soil_moisture_limit, humidity_limit, light_intensity_limit);
+    sscanf(buf, "%d,%d,%d,%d,%d,%d,%d,%d,", &temperature_limit1, &temperature_limit2, &temperature_limit3, &soil_moisture_limit, &humidity_limit, &light_intensity_limit1, &light_intensity_limit2, &light_intensity_limit3);
+    PRINT("Limits updated Temp=%d,%d,%d\tSoil_moist=%d\tHumid=%d\tLight intensity=%d,%d,%d\n", temperature_limit1, temperature_limit2, temperature_limit3, soil_moisture_limit, humidity_limit, light_intensity_limit1, light_intensity_limit2, light_intensity_limit3);
   }
 
   if (!strcmp(topic, sensor_readings_COM))
@@ -166,8 +170,6 @@ void Task1code(void *parameter)
 // the setup function runs once when you press reset or power the board
 void setup()
 {
-  // initialize digital pin ledPin as an output.
-  pinMode(ledPin, OUTPUT);
 
   Serial.begin(115200);
 
@@ -224,18 +226,18 @@ void loop()
   if (!water_supply && !strcmp(water_tank, "L"))
   {
     water_supply = 1;
-    PRINT("Open water input\t\twater_supply = %d\n", water_supply);
     modified_SCADA_signals = 1;
-    // !TODO
-    // MQTT
+    itoa(water_supply, msg, 10);
+    client.publish(water_supply_topic, msg, 2);
+    PRINT("Open water input\t\twater_supply = %d\n", water_supply);
   }
   if (water_supply && !strcmp(water_tank, "H"))
   {
     water_supply = 0;
-    PRINT("Close water input\t\twater_supply = %d\n", water_supply);
     modified_SCADA_signals = 1;
-    // !TODO
-    // MQTT
+    itoa(water_supply, msg, 10);
+    client.publish(water_supply_topic, msg, 2);
+    PRINT("Close water input\t\twater_supply = %d\n", water_supply);
   }
 
   // fertilizer low
@@ -243,15 +245,15 @@ void loop()
   {
     fertilizer_low = 1;
     PRINT("Fertilizer Low\t\t fertilizer_low = %d\n", fertilizer_low);
-    // !TODO
-    // MQTT
+    itoa(fertilizer_low, msg, 10);
+    client.publish(fertilizer_low_topic, msg, 2);
   }
   if (fertilizer_low && !strcmp(fertilizer_tank, "M"))
   {
     fertilizer_low = 0;
     PRINT("Fertilizer Medium\t\t fertilizer_low = %d\n", fertilizer_low);
-    // !TODO
-    // MQTT
+    itoa(fertilizer_low, msg, 10);
+    client.publish(fertilizer_low_topic, msg, 2);
   }
 
   // watering plants
@@ -269,15 +271,27 @@ void loop()
   }
 
   // fan control
-  if (fan && (temperature < temperature_limit))
+  if (fan != 0 && (temperature < temperature_limit1))
   {
     fan = 0;
     PRINT("Stop fans\t\t fan = %d\n", fan);
     modified_COM_signals = 1;
   }
-  if (!fan && (temperature > temperature_limit))
+  if (fan != 1 && (temperature >= temperature_limit1) && (temperature < temperature_limit2))
   {
     fan = 1;
+    PRINT("Start fans\t\t fan = %d\n", fan);
+    modified_COM_signals = 1;
+  }
+  if (fan != 2 && (temperature >= temperature_limit2) && (temperature < temperature_limit3))
+  {
+    fan = 2;
+    PRINT("Start fans\t\t fan = %d\n", fan);
+    modified_COM_signals = 1;
+  }
+  if (fan != 3 && (temperature >= temperature_limit3))
+  {
+    fan = 3;
     PRINT("Start fans\t\t fan = %d\n", fan);
     modified_COM_signals = 1;
   }
@@ -297,13 +311,25 @@ void loop()
   }
 
   // lights control
-  if (!light && (light_intensity < light_intensity_limit))
+  if (light != 3 && (light_intensity < light_intensity_limit1))
+  {
+    light = 3;
+    PRINT("Start lights\t\t light = %d\n", light);
+    modified_COM_signals = 1;
+  }
+  if (light != 2 && (light_intensity >= light_intensity_limit1) && (light_intensity < light_intensity_limit2))
+  {
+    light = 2;
+    PRINT("Start lights\t\t light = %d\n", light);
+    modified_COM_signals = 1;
+  }
+  if (light != 1 && (light_intensity >= light_intensity_limit2) && (light_intensity < light_intensity_limit3))
   {
     light = 1;
     PRINT("Start lights\t\t light = %d\n", light);
     modified_COM_signals = 1;
   }
-  if (light && (light_intensity > light_intensity_limit))
+  if (light != 0 && (light_intensity >= light_intensity_limit3))
   {
     light = 0;
     PRINT("Stop lights\t\t light = %d\n", light);
@@ -323,8 +349,8 @@ void loop()
   if (modified_COM_signals && client.connected())
   {
     snprintf(msg, MSG_BUFFER_SIZE, "%d,%d,%d,%d,%d", fan, watering, fertilizer, humidifier, light);
-    int status = client.publish(control_signals_COM, msg, 2);
-    PRINT("Published to COM %d\n", status);
+    client.publish(control_signals_COM, msg, 2);
+    PRINT("Published to COM\n");
     modified_COM_signals = 0;
   }
 
