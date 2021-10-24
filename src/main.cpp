@@ -49,6 +49,8 @@ int humidity_limit = 50;
 int light_intensity_limit1 = 50;
 int light_intensity_limit2 = 50;
 int light_intensity_limit3 = 50;
+int fertilizer_value_open_time = 0;
+int fertilizer_interval = 0;
 
 // sensor readings
 int temperature = 0;
@@ -105,8 +107,8 @@ void callback(char *topic, byte *message, unsigned int length)
 
   if (!strcmp(topic, thresholds))
   {
-    sscanf(buf, "%d,%d,%d,%d,%d,%d,%d,%d,", &temperature_limit1, &temperature_limit2, &temperature_limit3, &soil_moisture_limit, &humidity_limit, &light_intensity_limit1, &light_intensity_limit2, &light_intensity_limit3);
-    PRINT("Limits updated Temp=%d,%d,%d\tSoil_moist=%d\tHumid=%d\tLight intensity=%d,%d,%d\n", temperature_limit1, temperature_limit2, temperature_limit3, soil_moisture_limit, humidity_limit, light_intensity_limit1, light_intensity_limit2, light_intensity_limit3);
+    sscanf(buf, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d", &temperature_limit1, &temperature_limit2, &temperature_limit3, &soil_moisture_limit, &humidity_limit, &light_intensity_limit1, &light_intensity_limit2, &light_intensity_limit3, &fertilizer_value_open_time, &fertilizer_interval);
+    PRINT("Limits updated Temp=%d,%d,%d\tSoil_moist=%d\tHumid=%d\tLight intensity=%d,%d,%d\tFertilizer value open time=%d\tFertilizer interval=%d\n", temperature_limit1, temperature_limit2, temperature_limit3, soil_moisture_limit, humidity_limit, light_intensity_limit1, light_intensity_limit2, light_intensity_limit3, fertilizer_value_open_time, fertilizer_interval);
   }
 
   if (!strcmp(topic, sensor_readings_COM))
@@ -125,7 +127,6 @@ void callback(char *topic, byte *message, unsigned int length)
     client.publish(water_tank_topic, water_tank);
     client.publish(fertilizer_tank_topic, fertilizer_tank);
 
-    // snprintf(msg, MSG_BUFFER_SIZE, "%d,%d,%d,%d,%d", fan, watering, fertilizer, humidifier, light);
     client.publish(sensor_readings_SCADA, buf, 2);
   }
 }
