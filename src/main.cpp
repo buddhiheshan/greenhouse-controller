@@ -37,6 +37,9 @@ const char *light_intensity_topic = "CO326/2021/GH/1/light_intensity";
 const char *water_tank_topic = "CO326/2021/GH/1/water_tank_level";
 const char *fertilizer_tank_topic = "CO326/2021/GH/1/fertilizer_tank_level";
 
+const char *fan_topic = "CO326/2021/GH/1/fan";
+const char *light_topic = "CO326/2021/GH/1/lights";
+
 const char *water_supply_topic = "CO326/2021/GH/1/water_supply";
 const char *fertilizer_low_topic = "CO326/2021/GH/1/fertilizer_low_level";
 
@@ -342,6 +345,12 @@ void loop()
   {
     snprintf(msg, MSG_BUFFER_SIZE, "%d,%d,%d,%d,%d,%d", fan, watering, fertilizer, humidifier, light, water_supply);
     client.publish(control_signals_SCADA, msg, 2);
+
+    itoa(fan, msg, 10);
+    client.publish(fan_topic, msg, 2);
+    itoa(light, msg, 10);
+    client.publish(light_topic, msg, 2);
+
     PRINT("Published to SCADA\n");
     modified_SCADA_signals = 0;
   }
