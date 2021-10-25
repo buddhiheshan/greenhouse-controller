@@ -40,7 +40,7 @@ const char *fertilizer_tank_topic = "CO326/2021/GH/1/fertilizer_tank_level";
 const char *fan_topic = "CO326/2021/GH/1/fan";
 const char *light_topic = "CO326/2021/GH/1/lights";
 
-const char *water_supply_topic = "CO326/2021/GH/1/water_supply";
+const char *water_supply_topic = "CO326/2021/GH/1/water_supply_on_off";
 const char *fertilizer_low_topic = "CO326/2021/GH/1/fertilizer_low_level";
 
 // threshold values
